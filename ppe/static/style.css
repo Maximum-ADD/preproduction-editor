@@ -32,8 +32,11 @@ select { background: #0c0e12; color: var(--text); border: 1px solid var(--line);
 .toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 
 .top { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; margin: 16px 20px 0; }
-.player video { width: 100%; max-height: 52vh; background: #000; border-radius: 10px; display: block; }
-.panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+/* leave room under the video for the timeline, so both are on screen together */
+.player video { width: 100%; max-height: max(220px, calc(100vh - 480px)); background: #000; border-radius: 10px; display: block; }
+#timeline-card { margin: 10px 0 0; }
+#timeline-card .row { margin: 6px 0; }
+.panel { align-self: start; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
 .setting { margin-bottom: 10px; }
 .setting label { display: flex; justify-content: space-between; font-size: 13px; }
 dl { display: grid; grid-template-columns: auto auto; gap: 3px 10px; margin: 0; font-size: 13px; }
