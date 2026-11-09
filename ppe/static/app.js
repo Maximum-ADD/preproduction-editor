@@ -74,6 +74,7 @@ async function openVideo(path) {
     $("#open-screen").hidden = true;
     $("#review").hidden = false;
     $("#render-status").hidden = true;
+    restoreSplit();
     fitZoom();
     await analyze();
   } catch (e) {
@@ -268,13 +269,59 @@ scroller.addEventListener("wheel", (e) => {
   setZoom(state.zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2), t);
 }, { passive: false });
 scroller.addEventListener("scroll", () => draw());
-window.addEventListener("resize", () => draw());
+window.addEventListener("resize", () => { restoreSplit(); draw(); });
+new ResizeObserver(() => draw()).observe(scroller);
+
+// ---------- video / timeline splitter ----------
+// Dragging the bar sets the video height; the timeline takes the rest of the column.
+const player = $(".player"), splitter = $("#splitter"), timelineCard = $("#timeline-card");
+const SPLIT_KEY = "ppe.videoHeight";
+function splitActive() { return player.classList.contains("split") && splitter.offsetParent !== null; }
+function setVideoHeight(h) {
+  if (h == null) {
+    player.classList.remove("split");
+  } else {
+    const chrome = timelineCard.offsetHeight - scroller.clientHeight;   // card padding, rows, scrollbar
+    const max = player.clientHeight - splitter.offsetHeight - chrome - 70;  // keep >= 70 px of timeline
+    player.style.setProperty("--video-h", Math.round(Math.max(120, Math.min(max, h))) + "px");
+    player.classList.add("split");
+  }
+  draw();
+}
+function restoreSplit() {
+  let h = null;
+  try { h = parseFloat(localStorage.getItem(SPLIT_KEY)) || null; } catch {}
+  if (h && player.clientHeight) setVideoHeight(h);
+}
+splitter.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  splitter.setPointerCapture(e.pointerId);
+  splitter.classList.add("dragging");
+  const startY = e.clientY, startH = video.getBoundingClientRect().height;
+  const move = (ev) => setVideoHeight(startH + ev.clientY - startY);
+  const up = () => {
+    splitter.removeEventListener("pointermove", move);
+    splitter.removeEventListener("pointerup", up);
+    splitter.removeEventListener("pointercancel", up);
+    splitter.classList.remove("dragging");
+    try { localStorage.setItem(SPLIT_KEY, video.getBoundingClientRect().height); } catch {}
+  };
+  splitter.addEventListener("pointermove", move);
+  splitter.addEventListener("pointerup", up);
+  splitter.addEventListener("pointercancel", up);
+});
+splitter.addEventListener("dblclick", () => {
+  try { localStorage.removeItem(SPLIT_KEY); } catch {}
+  setVideoHeight(null);
+});
 
 function draw() {
   if (!state.info) return;
   const dpr = window.devicePixelRatio || 1;
-  const W = scroller.clientWidth, H = 150;
-  if (canvas.width !== W * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; }
+  const W = scroller.clientWidth, H = splitActive() ? Math.max(60, scroller.clientHeight - 1) : 150;
+  canvas.style.height = H + "px";
+  if (canvas.width !== W * dpr || canvas.height !== H * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; }
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);

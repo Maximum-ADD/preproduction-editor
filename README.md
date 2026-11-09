@@ -49,6 +49,8 @@ Your browser opens at http://127.0.0.1:8765. Choose a video, then review:
 - **Claps list**: set a false detection (door slam, desk thump) to *ignore*, or add a
   clap the detector missed at the playhead.
 - **Preview edit** (`P`) plays the video skipping everything that will be cut.
+- **Drag the bar** between the video and the timeline to make one bigger and the other
+  smaller; double-click it to reset. The size is remembered.
 - **Sliders**: silence threshold, minimum pause length (default 0.2 s), breathing room
   (default 0.1 s), clap sensitivity, double-clap gap.
 - **Cut breaths & noises in pauses** (on by default): short sounds with no voice pitch

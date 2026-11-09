@@ -34,14 +34,27 @@ select { background: #0c0e12; color: var(--text); border: 1px solid var(--line);
 .top { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; margin: 16px 20px 0; }
 /* The video column fills the window height: the timeline keeps its natural height
    and the video grows into whatever space is left, so both are always on screen. */
-.player { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 90px); min-height: 560px; }
+.player { display: flex; flex-direction: column; height: calc(100vh - 90px); min-height: 560px; }
 .player video { flex: 1 1 0; min-height: 0; width: 100%; background: #000; border-radius: 10px; display: block; }
-#timeline-card { flex: none; margin: 0; padding: 8px 12px; }
+#timeline-card { flex: none; margin: 0; padding: 8px 12px; display: flex; flex-direction: column; }
+/* the bar between video and timeline: drag to trade height between them */
+#splitter { flex: none; height: 12px; cursor: row-resize; display: flex; align-items: center; justify-content: center;
+  touch-action: none; }
+#splitter::before { content: ""; width: 56px; height: 4px; border-radius: 2px; background: var(--line); }
+#splitter:hover::before, #splitter.dragging::before { background: var(--accent); }
+.player.split video { flex: none; height: var(--video-h); }
+.player.split #timeline-card { flex: 1 1 0; min-height: 0; }
+.player.split #timeline-scroll { flex: 1 1 0; min-height: 0; }
 #timeline-card .row { margin: 4px 0; gap: 8px; }
 #timeline-card .legend { gap: 10px; }
 #zoom { width: 120px; }
 button.slim { padding: 3px 10px; }
-@media (max-width: 860px) { .player { height: auto; min-height: 0; } .player video { flex: none; max-height: 60vh; } }
+@media (max-width: 860px) {
+  .player { height: auto; min-height: 0; }
+  .player video, .player.split video { flex: none; height: auto; max-height: 60vh; }
+  .player.split #timeline-card, .player.split #timeline-scroll { flex: none; }
+  #splitter { display: none; }
+}
 .panel { align-self: start; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
 .setting { margin-bottom: 10px; }
 .setting label { display: flex; justify-content: space-between; font-size: 13px; }
