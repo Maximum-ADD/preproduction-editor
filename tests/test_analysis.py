@@ -131,5 +131,14 @@ def test_added_clap():
     assert kept_fraction(res, *m["main2b"]) > 0.9
 
 
+def test_first_single_clap_counts_as_start():
+    x, m = build([(None, silence(0.5)), ("pre", speech(1.5)), (None, silence(0.8)), (None, clap()),
+                  (None, silence(0.8)), ("take", speech(2)), (None, silence(1))])
+    res = AudioAnalysis(x, SR).build(Settings())
+    assert [e["type"] for e in res["events"]] == ["double"]
+    assert kept_fraction(res, *m["pre"]) < 0.05
+    assert kept_fraction(res, *m["take"]) > 0.9
+
+
 def test_snap_to_frames_merges_and_rounds():
     assert snap_to_frames([(0.0, 1.0), (1.01, 2.0), (3.0, 3.001)], 30) == [(0, 60)]

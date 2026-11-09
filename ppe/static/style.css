@@ -55,6 +55,8 @@ dd.big { font-size: 15px; color: var(--keep); font-weight: 600; }
 #claps td { padding: 5px 8px; border-top: 1px solid var(--line); }
 #claps td.t button { font-family: ui-monospace, Consolas, monospace; padding: 2px 8px; }
 #claps tr.ignored { opacity: .55; }
+#claps tr.flash td { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: rgba(227, 179, 65, .35); } to { background: transparent; } }
 .tag { font-size: 11px; color: var(--muted); }
 
 .bar { height: 8px; background: #0c0e12; border-radius: 4px; overflow: hidden; margin-top: 12px; }

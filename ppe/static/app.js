@@ -147,11 +147,13 @@ function renderClaps() {
   tbody.innerHTML = "";
   events.forEach((ev) => {
     const tr = document.createElement("tr");
+    tr.dataset.key = ev.key;
     if (ev.type === "ignore") tr.className = "ignored";
-    const label = ev.added ? "added by you" :
+    const times = ev.t_end !== ev.t ? `${fmt(ev.t, true)} + ${fmt(ev.t_end, true)}` : fmt(ev.t, true);
+    const label = ev.note ? ev.note : ev.added ? "added by you" :
       ev.type !== ev.detected_type ? `detected as ${ev.detected_type}` : "detected";
     tr.innerHTML = `
-      <td class="t"><button>${fmt(ev.t, true)}</button></td>
+      <td class="t"><button>${times}</button></td>
       <td><select>
         <option value="single">👏 single — redo</option>
         <option value="double">👏👏 double — new bit</option>
@@ -307,10 +309,27 @@ function draw() {
 function timeFromEvent(e) {
   return (scroller.scrollLeft + e.offsetX) / state.zoom;
 }
+// clap whose line is within a few pixels of x (either clap of a double counts)
+function clapNear(t) {
+  const tol = 6 / state.zoom;
+  return (state.result?.events || []).find((ev) =>
+    Math.abs(ev.t - t) <= tol || Math.abs(ev.t_end - t) <= tol);
+}
+function highlightClap(ev) {
+  const row = [...document.querySelectorAll("#claps tr")].find((r) => r.dataset.key === ev.key);
+  if (!row) return;
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
+}
 canvas.addEventListener("click", (e) => {
   const t = timeFromEvent(e);
+  const ev = clapNear(t);
+  if (ev) highlightClap(ev);
   state.selected = segmentAt(t);
   seek(t);
+});
+canvas.addEventListener("mousemove", (e) => {
+  canvas.title = clapNear(timeFromEvent(e)) ? "Click to edit this clap in the list below" : "";
 });
 canvas.addEventListener("dblclick", (e) => toggleSegment(segmentAt(timeFromEvent(e))));
 

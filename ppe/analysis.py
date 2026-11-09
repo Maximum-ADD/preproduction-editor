@@ -22,11 +22,15 @@ CLAP_PRE = 0.05       # cut this much before a clap...
 CLAP_POST = 0.25      # ...and this much after (clap ring-out)
 MIN_KEPT = 0.06       # kept blips shorter than this are treated as pause
 
-# Clap shape tests (see detect_claps)
-CLAP_ATTACK_DB = 12.0   # must be this much louder than the 10-60 ms before it
-CLAP_DECAY_DB = 10.0    # and stay this much quieter from 50 to 150 ms after
-CLAP_CENTROID_HZ = 1000.0  # claps are bright; desk thumps / door slams are not
-CLAP_FLATNESS = 0.15       # claps are noise-like; voices are tonal
+# Clap tests (see detect_claps). Tuned on a real webcam recording: claps were
+# 5-15 ms long and 16-33 dB louder than the voice; lip smacks, plate and desk
+# bangs were all 25 ms+ long. Pitch turned out to be useless, so it isn't used.
+CLAP_LOUDNESS_DB = 10.0  # at least this much louder than your voice (default)
+CLAP_ATTACK_DB = 15.0    # and this much louder than the 10-60 ms before it
+CLAP_MAX_MS = 20.0       # falls 10 dB below its peak within this time (claps: 5-15 ms)
+CLAP_DECAY_DB = 12.0     # and stays this much quieter from 50 to 150 ms after
+                         # (claps: 14+, less when so loud the mic clips)
+CLAP_FLATNESS = 0.03     # not a pure tone (only rules out ringing/beeps)
 
 
 @dataclass
@@ -107,21 +111,22 @@ class AudioAnalysis:
         spec = np.abs(np.fft.rfft(seg * np.hanning(len(seg))))
         freqs = np.fft.rfftfreq(len(seg), 1.0 / self.sr)
         centroid = float((spec * freqs).sum() / max(spec.sum(), 1e-12))
-        power = spec[freqs >= 500] ** 2 + 1e-12
+        power = spec[freqs >= 100] ** 2 + 1e-12
         flatness = float(np.exp(np.mean(np.log(power))) / np.mean(power))
         return centroid, flatness
 
     def detect_claps(self, sensitivity: float = 0.0) -> list[float]:
         """Times (s) of individual claps.
 
-        A clap is: loud (relative to your voice), sudden (big jump over the
-        moment before), short (dies away within ~120 ms, unlike a word), and
-        bright (high-frequency, unlike a thump).
+        A clap is: much louder than your voice, sudden (big jump over the
+        moment before), and very short — it falls away within ~25 ms, while
+        lip smacks, words, plates and desk bangs last longer.
         """
         if sensitivity in self._clap_cache:
             return self._clap_cache[sensitivity]
         r = self.fine_db
-        level = self.speech_level - 6.0 - sensitivity
+        level = self.speech_level + CLAP_LOUDNESS_DB - sensitivity
+        max_frames = int(round(CLAP_MAX_MS / 1000 / FINE))
         refractory = int(0.1 / FINE)
         hits: list[float] = []
         last = -10 ** 9
@@ -139,12 +144,15 @@ class AudioAnalysis:
             pre = r[max(0, i - 12):max(0, i - 2)]  # skip a frame the onset may straddle
             if len(pre) and r[j] - pre.max() < CLAP_ATTACK_DB:
                 continue
-            # gone within 50-150 ms (a word keeps going)
+            # very short: drops 10 dB below peak within ~25 ms
+            after = r[j + 1:j + 1 + max_frames]
+            if len(after) and after.min() > r[j] - 10:
+                continue
+            # and stays down 50-150 ms later (a word or a ringing plate keeps going)
             tail = r[j + 10:j + 30]
             if len(tail) and r[j] - tail.max() < CLAP_DECAY_DB:
                 continue
-            centroid, flatness = self._spectrum(j)
-            if centroid < CLAP_CENTROID_HZ or flatness < CLAP_FLATNESS:
+            if self._spectrum(j)[1] < CLAP_FLATNESS:
                 continue
             hits.append(round(j * FINE, 3))
             last = j
@@ -199,6 +207,10 @@ class AudioAnalysis:
                            "key": event_key(t), "detected_type": None, "added": True})
         events.sort(key=lambda ev: ev["t"])
         active = [ev for ev in events if ev["type"] in ("single", "double")]
+        # the first clap always means "start", whether you clapped once or twice
+        if active and active[0]["type"] == "single":
+            active[0]["type"] = "double"
+            active[0]["note"] = "first clap = start"
 
         # 3. nothing before the first clap is kept (you clap to start)
         if active:
