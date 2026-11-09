@@ -161,5 +161,16 @@ def test_soft_breaths_inside_a_pause_are_cut():
         assert kept_fraction(on, *m[word]) > 0.9
 
 
+def test_short_soft_word_is_kept_but_short_loud_noise_is_cut():
+    gap = lambda: silence(0.5)
+    x, m = build([(None, silence(0.5)), (None, clap()), (None, silence(0.3)), (None, clap()), (None, silence(0.8)),
+                  ("a", speech(2)), (None, gap()), ("word", 0.4 * speech(0.2)), (None, gap()),
+                  ("noise", 0.05 * rng.standard_normal(int(0.08 * SR))), (None, gap()),
+                  ("b", speech(2)), (None, silence(0.5))])
+    res = AudioAnalysis(x, SR).build(Settings())
+    assert kept_fraction(res, *m["word"]) > 0.9   # quiet, short, but has pitch
+    assert kept_fraction(res, *m["noise"]) == 0   # loud-ish, short, no pitch
+
+
 def test_snap_to_frames_merges_and_rounds():
     assert snap_to_frames([(0.0, 1.0), (1.01, 2.0), (3.0, 3.001)], 30) == [(0, 60)]

@@ -21,11 +21,15 @@ REASONS = ("keep", "silence", "retake", "clap", "preroll")
 CLAP_PRE = 0.05       # cut this much before a clap...
 CLAP_POST = 0.25      # ...and this much after (clap ring-out)
 MIN_KEPT = 0.06       # kept blips shorter than this are treated as pause
-# Breaths / lip noises inside a pause: sounds shorter than this that never get
-# within BREATH_DB of your normal voice count as part of the pause. (On real
-# recordings every bit of speech 0.3 s+ peaked within 2 dB of the voice.)
-BREATH_MAX = 0.3
-BREATH_DB = 6.0
+# Breaths, thumps, lip noises: a sound shorter than NOISE_MAX with no pitch
+# (fewer than NOISE_PITCHED frames of PITCH_MIN pitch strength) counts as part
+# of the pause, however loud. Spoken words have pitch even when quiet and deep
+# (real recording: soft words 9-17 pitched frames, 3 s of breaths 2 in total).
+NOISE_MAX = 0.3
+NOISE_PITCHED = 3
+PITCH_MIN = 0.35
+PITCH_HZ = (70, 400)  # voice pitch range searched
+PITCH_WIN = 0.04      # analysis window, seconds
 
 # Clap tests (see detect_claps). Tuned on a real webcam recording: claps were
 # 5-15 ms long and 16-33 dB louder than the voice; lip smacks, plate and desk
@@ -49,7 +53,7 @@ class Settings:
     padding: float = 0.1
     clap_sensitivity: float = 0.0     # dB; higher = quieter claps count
     double_gap: float = 0.6
-    cut_breaths: bool = True          # soft breaths inside pauses count as pause
+    cut_breaths: bool = True          # short sounds with no voice pitch count as pause
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "Settings":
@@ -106,7 +110,34 @@ class AudioAnalysis:
         peaks = np.abs(samples[: n * b]).reshape(n, b).max(axis=1) if n else np.zeros(0)
         ref = max(float(np.percentile(peaks, 99)) if n else 1.0, 1e-4)
         self.waveform = np.clip(peaks / ref, 0, 1)
+        self.pitch = self._pitch_strength()
         self._clap_cache: dict[float, list[float]] = {}
+
+    def _pitch_strength(self) -> np.ndarray:
+        """Per 10 ms frame, 0..1: how strongly periodic (voice-like) the sound is.
+
+        Peak of the normalised autocorrelation over voice pitch lags. Vowels
+        score ~0.5+, breaths/thumps/room noise ~0.15-0.3.
+        """
+        n, hop = len(self.rms_db), int(self.sr * HOP)
+        win = int(self.sr * PITCH_WIN)
+        lmin, lmax = self.sr // PITCH_HZ[1], self.sr // PITCH_HZ[0]
+        out = np.zeros(n, np.float32)
+        if n == 0 or lmax >= win:
+            return out
+        y = np.concatenate(([0.0], np.diff(self.samples))).astype(np.float32)  # drop rumble
+        off = (win - hop) // 2
+        y = np.concatenate((np.zeros(off + win, np.float32), y, np.zeros(2 * win, np.float32)))
+        frames = np.lib.stride_tricks.sliding_window_view(y, win)[win::hop][:n]
+        unbias = (win / (win - np.arange(lmin, lmax + 1))).astype(np.float32)
+        for a in range(0, n, 4096):  # chunks keep memory small on long recordings
+            f = frames[a:a + 4096]
+            f = f - f.mean(axis=1, keepdims=True)
+            spec = np.fft.rfft(f, 2 * win, axis=1)
+            ac = np.fft.irfft(spec.real ** 2 + spec.imag ** 2, axis=1)[:, :lmax + 1]
+            energy = np.maximum(ac[:, :1], 1e-12)
+            out[a:a + len(f)] = (ac[:, lmin:] / energy * unbias).max(axis=1)
+        return out
 
     # ---- claps -------------------------------------------------------------
 
@@ -197,10 +228,20 @@ class AudioAnalysis:
         thr = settings.silence_db if settings.silence_db is not None else self.auto_silence_db
         silent = np.ones(n, bool)
         silent[: len(self.rms_db)] = self.rms_db[:n] < thr
-        if settings.cut_breaths:
-            soft = self.speech_level - BREATH_DB
+        if settings.cut_breaths:  # breaths, thumps, lip noises: short and no pitch
+            # judge sounds in groups: gaps shorter than a pause never get cut,
+            # so a soft word ending flickering around the threshold stays
+            # part of its word
+            gap = max(1, int(round(settings.min_pause / HOP)))
+            groups: list[list[int]] = []  # [start, end, frames of actual sound]
             for s, e in _runs(~silent):
-                if (e - s) * HOP < BREATH_MAX and self.rms_db[s:e].max() < soft:
+                if groups and s - groups[-1][1] < gap:
+                    groups[-1][1] = e
+                    groups[-1][2] += e - s
+                else:
+                    groups.append([s, e, e - s])
+            for s, e, sounding in groups:
+                if sounding * HOP < NOISE_MAX and (self.pitch[s:e] >= PITCH_MIN).sum() < NOISE_PITCHED:
                     silent[s:e] = True
         pad = int(round(settings.padding / HOP))
         for s, e in _runs(silent):
