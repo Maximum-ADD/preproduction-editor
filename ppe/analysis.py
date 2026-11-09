@@ -31,6 +31,10 @@ CLAP_MAX_MS = 20.0       # falls 10 dB below its peak within this time (claps: 5
 CLAP_DECAY_DB = 12.0     # and stays this much quieter from 50 to 150 ms after
                          # (claps: 14+, less when so loud the mic clips)
 CLAP_FLATNESS = 0.03     # not a pure tone (only rules out ringing/beeps)
+# A clap that clips the mic can ring on to only ~10 dB down. Let it through if
+# it sounds clearly like a clap (noise-like: claps 0.06+, bangs/thuds <0.05).
+CLAP_DECAY_MIN_DB = 9.0
+CLAP_NOISY = 0.1
 
 
 @dataclass
@@ -150,9 +154,11 @@ class AudioAnalysis:
                 continue
             # and stays down 50-150 ms later (a word or a ringing plate keeps going)
             tail = r[j + 10:j + 30]
-            if len(tail) and r[j] - tail.max() < CLAP_DECAY_DB:
+            decay = r[j] - tail.max() if len(tail) else 99.0
+            flatness = self._spectrum(j)[1]
+            if flatness < CLAP_FLATNESS:
                 continue
-            if self._spectrum(j)[1] < CLAP_FLATNESS:
+            if decay < CLAP_DECAY_DB and not (decay >= CLAP_DECAY_MIN_DB and flatness >= CLAP_NOISY):
                 continue
             hits.append(round(j * FINE, 3))
             last = j
