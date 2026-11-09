@@ -12,8 +12,10 @@ const state = {
   addedEvents: [],     // [{t, type}]
   overrides: [],       // [{start, end, keep}]
   selected: -1,        // index into result.segments
+  range: null,         // dragged selection {start, end}
   zoom: 40,            // px per second
 };
+const undoStack = [];    // snapshots of your edits, for undo
 
 // ---------- helpers ----------
 async function api(path, body) {
@@ -64,6 +66,7 @@ async function openVideo(path) {
   try {
     state.info = await api("/api/open", { path });
     state.eventEdits = {}; state.addedEvents = []; state.overrides = []; state.selected = -1;
+    state.range = null; undoStack.length = 0; updateEditButtons();
     $("#file-name").textContent = state.info.name;
     $("#silence").value = state.info.auto_silence_db;
     $("#auto-silence").checked = true;
@@ -167,6 +170,7 @@ function renderClaps() {
     sel.value = ev.type;
     tr.querySelector(".t button").onclick = () => seek(ev.t - 1);
     sel.onchange = () => {
+      remember();
       if (ev.added) {
         const a = state.addedEvents.find((a) => a.t === ev.t);
         if (a) a.type = sel.value;
@@ -179,6 +183,7 @@ function renderClaps() {
     };
     const rm = tr.querySelector(".rm");
     if (rm) rm.onclick = () => {
+      remember();
       state.addedEvents = state.addedEvents.filter((a) => a.t !== ev.t);
       analyze();
     };
@@ -186,25 +191,58 @@ function renderClaps() {
   });
 }
 function addEvent(type) {
+  remember();
   state.addedEvents.push({ t: Math.round(video.currentTime * 100) / 100, type });
   analyze();
 }
 $("#add-single").onclick = () => addEvent("single");
 $("#add-double").onclick = () => addEvent("double");
 $("#reset-edits").onclick = () => {
-  if (!confirm("Undo all your clap changes and segment flips?")) return;
+  if (!confirm("Undo all your clap changes and keep/cut edits?")) return;
+  remember();
   state.eventEdits = {}; state.addedEvents = []; state.overrides = [];
   analyze();
 };
 
-// ---------- segment flipping ----------
+// ---------- your edits: flip / keep / cut, undo ----------
+function remember() {
+  undoStack.push(JSON.stringify({ e: state.eventEdits, a: state.addedEvents, o: state.overrides }));
+  if (undoStack.length > 200) undoStack.shift();
+  updateEditButtons();
+}
+function undo() {
+  if (!undoStack.length) return;
+  const s = JSON.parse(undoStack.pop());
+  state.eventEdits = s.e; state.addedEvents = s.a; state.overrides = s.o;
+  updateEditButtons();
+  analyze();
+}
+function updateEditButtons() {
+  const r = state.range;
+  $("#keep-range").disabled = $("#cut-range").disabled = !r;
+  $("#range-info").textContent = r ? `${fmt(r.start, true)} – ${fmt(r.end, true)}` : "";
+  $("#undo").disabled = !undoStack.length;
+}
 function toggleSegment(i) {
   const seg = state.result?.segments[i];
   if (!seg) return;
+  remember();
   state.overrides.push({ start: seg.start, end: seg.end, keep: !seg.keep });
   state.selected = i;
   analyze();
 }
+function applyRange(keep) {
+  const r = state.range;
+  if (!r) return;
+  remember();
+  state.overrides.push({ start: r.start, end: r.end, keep });
+  state.range = null;
+  updateEditButtons();
+  analyze();
+}
+$("#keep-range").onclick = () => applyRange(true);
+$("#cut-range").onclick = () => applyRange(false);
+$("#undo").onclick = undo;
 
 // ---------- timeline ----------
 const RULER = 18, LANE = 14;
@@ -295,8 +333,18 @@ function draw() {
     ctx.fillText(ignored ? "✕" : ev.type === "double" ? "👏👏" : "👏", x(ev.t) + 3, waveTop + 14);
   }
 
+  // dragged range
+  const r = state.range;
+  if (r) {
+    const a = x(r.start), w = Math.max(1, (r.end - r.start) * z);
+    ctx.fillStyle = "rgba(255,255,255,0.14)"; ctx.fillRect(a, RULER, w, H - RULER);
+    ctx.strokeStyle = "#fff"; ctx.setLineDash([4, 3]);
+    ctx.strokeRect(Math.round(a) + 0.5, RULER + 0.5, Math.round(w) - 1, H - RULER - 1);
+    ctx.setLineDash([]);
+  }
+
   // selection
-  const sel = segs[state.selected];
+  const sel = r ? null : segs[state.selected];
   if (sel) {
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
     ctx.strokeRect(x(sel.start) + 1, RULER + 1, (sel.end - sel.start) * z - 2, H - RULER - 2);
@@ -323,7 +371,31 @@ function highlightClap(ev) {
   row.scrollIntoView({ behavior: "smooth", block: "center" });
   row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
 }
+// drag to select a stretch (a plain click still just jumps)
+let drag = null, justDragged = false;
+function timeFromClientX(clientX) {
+  const t = (scroller.scrollLeft + clientX - canvas.getBoundingClientRect().left) / state.zoom;
+  return Math.max(0, Math.min(t, state.info.duration));
+}
+canvas.addEventListener("mousedown", (e) => {
+  justDragged = false;
+  if (e.button === 0 && state.info) drag = { t: timeFromClientX(e.clientX), x: e.clientX, moved: false };
+});
+window.addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  if (!drag.moved && Math.abs(e.clientX - drag.x) < 4) return;
+  drag.moved = true;
+  const t = timeFromClientX(e.clientX);
+  state.range = { start: Math.min(drag.t, t), end: Math.max(drag.t, t) };
+  updateEditButtons(); draw();
+});
+window.addEventListener("mouseup", () => {
+  if (drag?.moved) justDragged = true;
+  drag = null;
+});
 canvas.addEventListener("click", (e) => {
+  if (justDragged) { justDragged = false; return; }
+  if (state.range) { state.range = null; updateEditButtons(); }
   const t = timeFromEvent(e);
   const ev = clapNear(t);
   if (ev) highlightClap(ev);
@@ -367,9 +439,16 @@ $("#preview").onchange = () => {
 document.addEventListener("keydown", (e) => {
   const typing = ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)
     && !["range", "checkbox"].includes(e.target.type);
-  if (!state.info || typing || e.target === video) return;
+  if (!state.info || typing) return;
+  if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) { e.preventDefault(); undo(); return; }
+  if (e.target === video || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === " ") { e.preventDefault(); video.paused ? video.play() : video.pause(); }
-  else if (e.key === "x" || e.key === "X") toggleSegment(state.selected);
+  else if (e.key === "x" || e.key === "X") state.range ? applyRange(false) : toggleSegment(state.selected);
+  else if (e.key === "k" || e.key === "K") {
+    if (state.range) applyRange(true);
+    else if (state.result?.segments[state.selected] && !state.result.segments[state.selected].keep) toggleSegment(state.selected);
+  }
+  else if (e.key === "Escape" && state.range) { state.range = null; updateEditButtons(); draw(); }
   else if (e.key === "p" || e.key === "P") { $("#preview").checked = !$("#preview").checked; $("#preview").onchange(); }
 });
 

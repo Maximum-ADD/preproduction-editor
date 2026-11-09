@@ -95,7 +95,16 @@
         <canvas id="timeline"></canvas>
         <div id="timeline-spacer"></div>
       </div>
-      <p class="muted small">Click to jump · double-click a segment (or press <kbd>X</kbd>) to flip it between kept and cut · <kbd>Space</kbd> play/pause · Ctrl+scroll to zoom</p>
+      <div class="row spread">
+        <p class="muted small">Click to jump · <b>drag</b> to select a stretch, then <kbd>K</kbd> keep / <kbd>X</kbd> cut ·
+          double-click a segment (or <kbd>X</kbd>) to flip it · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Space</kbd> play/pause · Ctrl+scroll to zoom</p>
+        <div class="row">
+          <span id="range-info" class="mono muted small"></span>
+          <button id="keep-range" disabled>Keep selection <kbd>K</kbd></button>
+          <button id="cut-range" disabled>Cut selection <kbd>X</kbd></button>
+          <button id="undo" disabled>Undo</button>
+        </div>
+      </div>
     </section>
 
     <section class="card">
