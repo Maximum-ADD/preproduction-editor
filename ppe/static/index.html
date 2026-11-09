@@ -32,12 +32,26 @@
     <div class="top">
       <div class="player">
         <video id="video" controls preload="auto"></video>
-        <div class="row">
-          <label class="toggle"><input id="preview" type="checkbox"> Preview edit <kbd>P</kbd></label>
-          <span id="time" class="mono muted"></span>
-        </div>
         <section id="timeline-card" class="card">
           <div class="row spread">
+            <div class="row">
+              <label class="toggle"><input id="preview" type="checkbox"> Preview edit <kbd>P</kbd></label>
+              <span id="time" class="mono muted"></span>
+            </div>
+            <div class="row">
+              <span id="range-info" class="mono muted small"></span>
+              <button id="keep-range" class="slim" disabled>Keep selection <kbd>K</kbd></button>
+              <button id="cut-range" class="slim" disabled>Cut selection <kbd>X</kbd></button>
+              <button id="undo" class="slim" disabled>Undo</button>
+              <label class="small muted" for="zoom">Zoom</label>
+              <input id="zoom" type="range" min="0" max="100" value="45">
+            </div>
+          </div>
+          <div id="timeline-scroll">
+            <canvas id="timeline"></canvas>
+            <div id="timeline-spacer"></div>
+          </div>
+          <div class="row spread small muted">
             <div class="legend">
               <span><i class="sw keep"></i>Kept</span>
               <span><i class="sw silence"></i>Pause</span>
@@ -46,24 +60,8 @@
               <span><i class="sw preroll"></i>Before 1st clap</span>
               <span><i class="sw manual"></i>Your edit</span>
             </div>
-            <div class="row">
-              <label class="small muted">Zoom</label>
-              <input id="zoom" type="range" min="0" max="100" value="45">
-            </div>
-          </div>
-          <div id="timeline-scroll">
-            <canvas id="timeline"></canvas>
-            <div id="timeline-spacer"></div>
-          </div>
-          <div class="row spread">
-            <p class="muted small">Click to jump · <b>drag</b> to select a stretch, then <kbd>K</kbd> keep / <kbd>X</kbd> cut ·
-              double-click a segment (or <kbd>X</kbd>) to flip it · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Space</kbd> play/pause · Ctrl+scroll to zoom</p>
-            <div class="row">
-              <span id="range-info" class="mono muted small"></span>
-              <button id="keep-range" disabled>Keep selection <kbd>K</kbd></button>
-              <button id="cut-range" disabled>Cut selection <kbd>X</kbd></button>
-              <button id="undo" disabled>Undo</button>
-            </div>
+            <span>Click to jump · <b>drag</b> to select, then <kbd>K</kbd> keep / <kbd>X</kbd> cut ·
+              double-click a segment to flip it · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Space</kbd> play · Ctrl+scroll to zoom</span>
           </div>
         </section>
       </div>

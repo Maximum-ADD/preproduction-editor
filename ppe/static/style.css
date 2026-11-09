@@ -32,10 +32,16 @@ select { background: #0c0e12; color: var(--text); border: 1px solid var(--line);
 .toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 
 .top { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; margin: 16px 20px 0; }
-/* leave room under the video for the timeline, so both are on screen together */
-.player video { width: 100%; max-height: max(220px, calc(100vh - 480px)); background: #000; border-radius: 10px; display: block; }
-#timeline-card { margin: 10px 0 0; }
-#timeline-card .row { margin: 6px 0; }
+/* The video column fills the window height: the timeline keeps its natural height
+   and the video grows into whatever space is left, so both are always on screen. */
+.player { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 90px); min-height: 560px; }
+.player video { flex: 1 1 0; min-height: 0; width: 100%; background: #000; border-radius: 10px; display: block; }
+#timeline-card { flex: none; margin: 0; padding: 8px 12px; }
+#timeline-card .row { margin: 4px 0; gap: 8px; }
+#timeline-card .legend { gap: 10px; }
+#zoom { width: 120px; }
+button.slim { padding: 3px 10px; }
+@media (max-width: 860px) { .player { height: auto; min-height: 0; } .player video { flex: none; max-height: 60vh; } }
 .panel { align-self: start; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
 .setting { margin-bottom: 10px; }
 .setting label { display: flex; justify-content: space-between; font-size: 13px; }
