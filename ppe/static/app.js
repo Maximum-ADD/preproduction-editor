@@ -97,6 +97,7 @@ function settings() {
     padding: +$("#padding").value,
     clap_sensitivity: +$("#clap-sens").value,
     double_gap: +$("#double-gap").value,
+    cut_breaths: $("#cut-breaths").checked,
   };
 }
 function requestBody() {
@@ -124,6 +125,7 @@ for (const [id] of sliders) {
   });
 }
 $("#auto-silence").onchange = () => { updateLabels(); analyze(); };
+$("#cut-breaths").onchange = () => analyze();
 
 function renderStats() {
   const s = state.result.stats;

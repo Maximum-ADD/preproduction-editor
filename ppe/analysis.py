@@ -21,6 +21,11 @@ REASONS = ("keep", "silence", "retake", "clap", "preroll")
 CLAP_PRE = 0.05       # cut this much before a clap...
 CLAP_POST = 0.25      # ...and this much after (clap ring-out)
 MIN_KEPT = 0.06       # kept blips shorter than this are treated as pause
+# Breaths / lip noises inside a pause: sounds shorter than this that never get
+# within BREATH_DB of your normal voice count as part of the pause. (On real
+# recordings every bit of speech 0.3 s+ peaked within 2 dB of the voice.)
+BREATH_MAX = 0.3
+BREATH_DB = 6.0
 
 # Clap tests (see detect_claps). Tuned on a real webcam recording: claps were
 # 5-15 ms long and 16-33 dB louder than the voice; lip smacks, plate and desk
@@ -44,6 +49,7 @@ class Settings:
     padding: float = 0.1
     clap_sensitivity: float = 0.0     # dB; higher = quieter claps count
     double_gap: float = 0.6
+    cut_breaths: bool = True          # soft breaths inside pauses count as pause
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "Settings":
@@ -51,6 +57,8 @@ class Settings:
         for k in ("silence_db", "min_pause", "padding", "clap_sensitivity", "double_gap"):
             if d and d.get(k) is not None:
                 setattr(s, k, float(d[k]))
+        if d and d.get("cut_breaths") is not None:
+            s.cut_breaths = bool(d["cut_breaths"])
         return s
 
 
@@ -189,6 +197,11 @@ class AudioAnalysis:
         thr = settings.silence_db if settings.silence_db is not None else self.auto_silence_db
         silent = np.ones(n, bool)
         silent[: len(self.rms_db)] = self.rms_db[:n] < thr
+        if settings.cut_breaths:
+            soft = self.speech_level - BREATH_DB
+            for s, e in _runs(~silent):
+                if (e - s) * HOP < BREATH_MAX and self.rms_db[s:e].max() < soft:
+                    silent[s:e] = True
         pad = int(round(settings.padding / HOP))
         for s, e in _runs(silent):
             if (e - s) * HOP < settings.min_pause:

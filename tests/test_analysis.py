@@ -140,5 +140,26 @@ def test_first_single_clap_counts_as_start():
     assert kept_fraction(res, *m["take"]) > 0.9
 
 
+def breath():
+    n = int(0.04 * SR)
+    return 0.004 * rng.standard_normal(n) * np.hanning(n)
+
+
+def test_soft_breaths_inside_a_pause_are_cut():
+    gap = lambda: silence(0.4)
+    x, m = build([(None, silence(0.5)), (None, clap()), (None, silence(0.3)), (None, clap()), (None, silence(0.8)),
+                  ("a", speech(2)), ("pause", gap()), (None, breath()), (None, gap()), (None, breath()),
+                  (None, gap()), ("b", speech(2)), (None, silence(0.5))])
+    pause = (m["pause"][0], m["b"][0])
+    a = AudioAnalysis(x, SR)
+    on = a.build(Settings())
+    kept = kept_fraction(on, *pause) * (pause[1] - pause[0])
+    assert 0.15 <= kept <= 0.25, kept  # one pause: just the breathing room
+    off = a.build(Settings(cut_breaths=False))
+    assert kept_fraction(off, *pause) > kept_fraction(on, *pause)
+    for word in ("a", "b"):
+        assert kept_fraction(on, *m[word]) > 0.9
+
+
 def test_snap_to_frames_merges_and_rounds():
     assert snap_to_frames([(0.0, 1.0), (1.01, 2.0), (3.0, 3.001)], 30) == [(0, 60)]
