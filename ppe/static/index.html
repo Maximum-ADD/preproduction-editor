@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pre-production Editor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Pre-production Editor</h1>
+    <span id="file-name" class="muted"></span>
+  </header>
+
+  <!-- Step 1: open a video -->
+  <section id="open-screen" class="card">
+    <h2>Open a recording</h2>
+    <p class="muted">👏👏 double clap = new bit starts here · 👏 single clap = redo that bit · keep talking = last take wins</p>
+    <div class="row">
+      <button id="browse" class="primary">Choose video…</button>
+      <span class="muted">or paste a path</span>
+    </div>
+    <div class="row">
+      <input id="path" type="text" placeholder="C:\Videos\recording.mp4" spellcheck="false">
+      <button id="open">Open</button>
+    </div>
+    <p id="open-status" class="muted"></p>
+  </section>
+
+  <!-- Step 2: review -->
+  <main id="review" hidden>
+    <div class="top">
+      <div class="player">
+        <video id="video" controls preload="auto"></video>
+        <div class="row">
+          <label class="toggle"><input id="preview" type="checkbox"> Preview edit <kbd>P</kbd></label>
+          <span id="time" class="mono muted"></span>
+        </div>
+      </div>
+
+      <aside class="panel">
+        <h3>Settings</h3>
+        <div class="setting">
+          <label>Silence threshold <span id="silence-val" class="mono"></span></label>
+          <input id="silence" type="range" min="-80" max="-10" step="0.5">
+          <label class="toggle small"><input id="auto-silence" type="checkbox" checked> Auto</label>
+        </div>
+        <div class="setting">
+          <label>Cut pauses longer than <span id="min-pause-val" class="mono"></span></label>
+          <input id="min-pause" type="range" min="0.05" max="1.5" step="0.05" value="0.2">
+        </div>
+        <div class="setting">
+          <label>Breathing room <span id="padding-val" class="mono"></span></label>
+          <input id="padding" type="range" min="0" max="0.4" step="0.01" value="0.1">
+        </div>
+        <div class="setting">
+          <label>Clap sensitivity <span id="clap-sens-val" class="mono"></span></label>
+          <input id="clap-sens" type="range" min="-12" max="12" step="1" value="0">
+        </div>
+        <div class="setting">
+          <label>Double-clap gap <span id="double-gap-val" class="mono"></span></label>
+          <input id="double-gap" type="range" min="0.2" max="1.2" step="0.05" value="0.6">
+        </div>
+
+        <h3>Result</h3>
+        <dl id="stats"></dl>
+
+        <button id="render" class="primary wide">Render MP4</button>
+        <div id="render-status" hidden>
+          <div class="bar"><div id="render-bar"></div></div>
+          <p id="render-text" class="muted"></p>
+          <button id="reveal" hidden>Show in folder</button>
+        </div>
+      </aside>
+    </div>
+
+    <section class="card">
+      <div class="row spread">
+        <div class="legend">
+          <span><i class="sw keep"></i>Kept</span>
+          <span><i class="sw silence"></i>Pause</span>
+          <span><i class="sw retake"></i>Retake</span>
+          <span><i class="sw clap"></i>Clap</span>
+          <span><i class="sw preroll"></i>Before 1st clap</span>
+          <span><i class="sw manual"></i>Your edit</span>
+        </div>
+        <div class="row">
+          <label class="small muted">Zoom</label>
+          <input id="zoom" type="range" min="0" max="100" value="45">
+        </div>
+      </div>
+      <div id="timeline-scroll">
+        <canvas id="timeline"></canvas>
+        <div id="timeline-spacer"></div>
+      </div>
+      <p class="muted small">Click to jump · double-click a segment (or press <kbd>X</kbd>) to flip it between kept and cut · <kbd>Space</kbd> play/pause · Ctrl+scroll to zoom</p>
+    </section>
+
+    <section class="card">
+      <div class="row spread">
+        <h3>Claps</h3>
+        <div class="row">
+          <button id="add-single">+ 👏 at playhead</button>
+          <button id="add-double">+ 👏👏 at playhead</button>
+          <button id="reset-edits">Reset my edits</button>
+        </div>
+      </div>
+      <p class="muted small">Wrong detection (door slam, desk thump)? Set it to <b>ignore</b>. Missed a clap? Add one at the playhead.</p>
+      <table id="claps"><tbody></tbody></table>
+      <p id="no-claps" class="muted small" hidden>No claps detected. Try raising clap sensitivity.</p>
+    </section>
+  </main>
+
+  <div id="busy" hidden><div class="spinner"></div><p id="busy-text">Working…</p></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
